@@ -105,6 +105,16 @@ def skolemize(source_file_path, nt_file_path, str_length_threshold=100):
     return nt_file_path
 
 
+def discover_keys(key_detecting_tool_path, source_file_path, nb_exceptions):
+    script_dir = os.path.dirname(__file__)
+    source_file_path = os.path.join(script_dir, source_file_path)
+    keys_file_path = "keys.txt"
+    keys_file_path = os.path.join(script_dir, keys_file_path)
+    command = f"java -jar {key_detecting_tool_path} {source_file_path} {nb_exceptions} > {keys_file_path}"
+    os.system(command)
+    return keys_file_path
+
+
 def check_minimal_keys(keys_file_path):
     script_dir = os.path.dirname(__file__)
     abs_keys_file_path = os.path.join(script_dir, keys_file_path)
@@ -315,11 +325,13 @@ def get_distinct_props_from_keys(keys_file_path, output_file_path):
 
 if __name__ == '__main__':
     # globals()[sys.argv[1]](sys.argv[2], sys.argv[3])
-    nt_file, nb_distinct_instances = create_triples('dbpedia2016-10.hdt', 'dbpedia_book/alignment.xml', "http://dbpedia.org/ontology/Book")
+    nt_file, nb_distinct_instances = create_triples('dbpedia2016-10.hdt', 'dbpedia_book/alignment.xml',
+                                                    "http://dbpedia.org/ontology/Book")
     # nt_file_path = skolemize('../schema_Book.nq', 'schema_book/schema_book.nt')
-    props_file = get_distinct_props('dbpedia_book/keys.out')
+    keys_file = discover_keys("/Users/ainura01/Downloads/Sakey-handson-materials/sakey.jar", nt_file, 1)
+    props_file = get_distinct_props(keys_file)
     dict_props_instances_file = get_props_count_instances(nt_file, props_file)
-    dict_key_support_file = get_keys_support('dbpedia_book/keys.out', dict_props_instances_file, nb_distinct_instances)
+    dict_key_support_file = get_keys_support(keys_file, dict_props_instances_file, nb_distinct_instances)
     rank_keys(dict_key_support_file, 'dbpedia_book/alignment.xml')
     # check_minimal_keys('dbpedia/keys-1-dbpedia.nt')
     # get_instances_number('schema_book/zipped_schema_book.nt', 'dbpedia_book/alignment.xml')
