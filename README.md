@@ -36,6 +36,8 @@ Open source projects such as Schema.org and [Web Data Commons](http://webdatacom
 
 The tool is written in Python and requires `Python` and `pip` installed.
 
+In its current version, the tool is working with SAKEY key discovery tool. SAKEY .jar file should be downloaded and provided as a parameter to the tool. 
+
 ### Main dependencies
 
 This tool mainly rely on open-source libraries:
