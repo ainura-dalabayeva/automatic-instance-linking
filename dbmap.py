@@ -8,6 +8,31 @@ import functools
 import operator
 import pprint
 from bs4 import BeautifulSoup
+from urllib import request
+from subprocess import Popen, PIPE
+import argparse
+
+
+def align_ontologies(ontology1, ontology2):
+    seals_client_matcher_url = "http://oaei.ontologymatching.org/2011.5/tutorial/seals-omt-client.jar"
+    local_file = 'seals-omt-client.jar'
+    request.urlretrieve(seals_client_matcher_url, local_file)
+    alignment_tools = ['AML', 'ATBox', 'LogMap']
+    script_dir = os.path.dirname(__file__)
+    seals_home_path = os.path.join(script_dir, "seals_home")
+    is_exist = os.path.exists(seals_home_path)
+    if not is_exist:
+        os.makedirs(seals_home_path)
+    comm = f"export SEALS_HOME=\"{seals_home_path}\""
+    os.system(comm)
+    for tool in alignment_tools:
+        command = f"java -jar {local_file} {tool} -o " \
+                  f"{ontology1} {ontology2} "
+        p = Popen([command], stdin=PIPE, shell=True)
+        p.communicate(input='y')
+        # TODO copy alignment before it is deleted
+        p.communicate(input='y')
+        os.system(command)
 
 
 def create_triples(source_hdt_file_path, alignment_file_path,
@@ -57,11 +82,11 @@ def create_triples(source_hdt_file_path, alignment_file_path,
 
             # match objects literals (in quotes)
             match = re.search(r'"*(.*?)"', o2)
-            
+
             # if object is IRI add <> outside
-            if match is None: 
+            if match is None:
                 o2 = "<" + o2 + ">"
-            
+
             f.write("<" + s2 + ">" + " " + "<" + p2 + ">" + " " + o2 + " .\n")
     f.close()
     print(f" Number of distinct instances: {len(distinct_instances)}")
@@ -69,10 +94,22 @@ def create_triples(source_hdt_file_path, alignment_file_path,
     return nt_file_path, len(distinct_instances)
 
 
-def skolemize(source_file_path, nt_file_path, str_length_threshold=100):
+def skolemize(source_file_path, alignment_file_path, str_length_threshold=100):
     script_dir = os.path.dirname(__file__)
     source_file_path = os.path.join(script_dir, source_file_path)
-    nt_file_path = os.path.join(script_dir, nt_file_path)
+    nt_file_path = "triples.nt"
+    alignment_file_path = os.path.join(script_dir, alignment_file_path)
+
+    distinct_instances = set()
+    distinct_props = set()
+
+    with open(alignment_file_path, "r", encoding='utf-8') as alignment:
+        # Read each line in the file, readlines() returns a list of lines
+        content = alignment.readlines()
+        # Combine the lines in the list into a string
+        content = "".join(content)
+        bs_content = BeautifulSoup(content, "lxml")
+        mappings = [row['rdf:resource'] for row in bs_content.find_all('entity1')]
 
     with open(source_file_path, "r", encoding='utf-8') as nt:
         f = open(nt_file_path, "w")
@@ -99,10 +136,21 @@ def skolemize(source_file_path, nt_file_path, str_length_threshold=100):
                     line = re.sub(blank_node, node_name, line)
                 except:
                     print(line)
+            spo = line.split('> ')
+            s = spo[0].replace('<', '')
+            p = spo[1].replace('<', '').lower()
+
+            if p not in mappings:
+                continue
+
+            distinct_instances.add(s)
+            distinct_props.add(p)
             f.write(line + '\n')
         f.close()
 
-    return nt_file_path
+    print(f" Number of distinct instances: {len(distinct_instances)}")
+    print(f" Number of distinct properties: {len(distinct_props)}")
+    return nt_file_path, len(distinct_instances)
 
 
 def discover_keys(key_detecting_tool_path, source_file_path, nb_exceptions):
@@ -140,7 +188,9 @@ def get_distinct_props(keys_file_path):
     props_file_path = os.path.join(script_dir, props_file_path)
     distinct_props = set()
     with open(abs_keys_file_path, "r") as keys_file:
-        keys = keys_file.read().split('], ')
+        keys = keys_file.read()
+        almost_keys = re.search(r"(?<=(almost keys:\[)).*(?=(\]))", keys).group()
+        keys = almost_keys.split('], ')
         for key_str in keys:
             if key_str == '':
                 continue
@@ -157,8 +207,8 @@ def get_props_count_instances(source_file_path, props_file_path):
     script_dir = os.path.dirname(__file__)
     abs_source_file_path = os.path.join(script_dir, source_file_path)
     abs_props_file_path = os.path.join(script_dir, props_file_path)
-    with open(abs_props_file_path, "r") as props_file:
-        props_set = ast.literal_eval(props_file.read())
+    with open(abs_props_file_path, "r") as props:
+        props_set = ast.literal_eval(props.read())
     dict_props_count = {}
     dict_props_instances = {}
     with open(abs_source_file_path, "r", encoding='utf-8') as nt:
@@ -178,7 +228,7 @@ def get_props_count_instances(source_file_path, props_file_path):
                     if s not in dict_props_instances[p]:
                         dict_props_instances[p].append(s)
                         dict_props_count[p] += 1
-        
+
     dict_props_count_file_path = "props-count.txt"
     dict_props_count_file_path = os.path.join(script_dir, dict_props_count_file_path)
     f = open(dict_props_count_file_path, "w", encoding='utf-8')
@@ -203,7 +253,9 @@ def get_keys_support(keys_file_path, source_file_path, nb_instances):
     with open(abs_source_file_path, "r", encoding='utf-8') as source_file:
         dict_props_instances = ast.literal_eval(source_file.read())
     with open(abs_keys_file_path, "r", encoding='utf-8') as keys_file:
-        keys = keys_file.read().split('], ')
+        keys = keys_file.read()
+        almost_keys = re.search(r"(?<=(almost keys:\[)).*(?=(\]))", keys).group()
+        keys = almost_keys.split('], ')
         for key_str in keys:
             if key_str == '':
                 continue
@@ -325,14 +377,41 @@ def get_distinct_props_from_keys(keys_file_path, output_file_path):
 
 if __name__ == '__main__':
     # globals()[sys.argv[1]](sys.argv[2], sys.argv[3])
-    nt_file, nb_distinct_instances = create_triples('dbpedia2016-10.hdt', 'dbpedia_book/alignment.xml',
-                                                    "http://dbpedia.org/ontology/Book")
-    # nt_file_path = skolemize('../schema_Book.nq', 'schema_book/schema_book.nt')
-    keys_file = discover_keys("/Users/ainura01/Downloads/Sakey-handson-materials/sakey.jar", nt_file, 1)
+    parser = argparse.ArgumentParser()
+    subparser = parser.add_subparsers(dest='dataset', required=True, help='Input dataset: dbpedia or schema')
+    dbpedia = subparser.add_parser('dbpedia')
+    schema = subparser.add_parser('schema')
+    dbpedia.add_argument('--HDTFile', type=str, required=True, help='The HDT file path in case of dbpedia')
+    dbpedia.add_argument('--className', type=str, required=True,
+                         help='Class name in case of dbpedia. Example: http://dbpedia.org/ontology/Library')
+    dbpedia.add_argument('--alignmentFile', type=str, required=True, help='The path to alignment file')
+    dbpedia.add_argument('--keyDiscoveryTool', type=str, required=True, help='The path to key discovery tool')
+    dbpedia.add_argument('--nbExceptions', nargs='?', const=1, type=int, default=1, required=False,
+                        help='The number of exceptions for key discovery tool')
+    dbpedia.add_argument('--objLengthThreshold', nargs='?', const=100, type=int, default=100, required=False,
+                        help='Maximal length of literals in triples')
+    schema.add_argument('--sourceFile', type=str, required=True, help='The source dataset in case of schema')
+    schema.add_argument('--alignmentFile', type=str, required=True, help='The path to alignment file')
+    schema.add_argument('--keyDiscoveryTool', type=str, required=True, help='The path to key discovery tool')
+    schema.add_argument('--nbExceptions', nargs='?', const=1, type=int, default=1, required=False,
+                        help='The number of exceptions for key discovery tool')
+    schema.add_argument('--objLengthThreshold', nargs='?', const=100, type=int, default=100, required=False,
+                        help='Maximal length of literals in triples')
+    args = parser.parse_args()
+
+    if args.dataset != "dbpedia" or args.dataset != "schema":
+        raise ValueError("dbpedia or schema should be passed as a parameter")
+
+    if args.dataset == "dbpedia":
+        nt_file, nb_distinct_instances = create_triples(args.HDTFile, args.alignmentFile,
+                                                        args.className, args.objLengthThreshold)
+    else:
+        nt_file, nb_distinct_instances = skolemize(args.sourceFile, args.alignmentFile, args.objLengthThreshold)
+    keys_file = discover_keys(args.keyDiscoveryTool, nt_file, args.nbExceptions)
     props_file = get_distinct_props(keys_file)
     dict_props_instances_file = get_props_count_instances(nt_file, props_file)
     dict_key_support_file = get_keys_support(keys_file, dict_props_instances_file, nb_distinct_instances)
-    rank_keys(dict_key_support_file, 'dbpedia_book/alignment.xml')
+    rank_keys(dict_key_support_file, args.alignmentFile)
     # check_minimal_keys('dbpedia/keys-1-dbpedia.nt')
     # get_instances_number('schema_book/zipped_schema_book.nt', 'dbpedia_book/alignment.xml')
     # sort_dict('dbpedia/dict-props-count-keys-1-dbpedia.txt')
