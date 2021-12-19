@@ -80,12 +80,17 @@ Example 1. Run the help command of the script:
 
 Example 2. Run the script for `Book` class of `DBpedia.org` dataset:
   ```sh
-  python dbmap.py dbpedia --HDTFile dbpedia2016-10.hdt --className http://dbpedia.org/ontology/Book --alignmentFile alignment.xml --keyDiscoveryTool sakey.jar
+  python dbmap.py dbpedia --HDTFile dbpedia2016-10.hdt 
+          --className http://dbpedia.org/ontology/Book 
+          --alignmentFile alignment.xml 
+          --keyDiscoveryTool sakey.jar
   ```
 
 Example 3. Run the script for `Schema.org` dataset:
   ```sh
-  python dbmap.py schema --sourceFile Book.nq --alignmentFile alignment.xml --keyDiscoveryTool sakey.jar
+  python dbmap.py schema --sourceFile Book.nq 
+          --alignmentFile alignment.xml 
+          --keyDiscoveryTool sakey.jar
   ```
 
 
@@ -95,7 +100,7 @@ Example 3. Run the script for `Schema.org` dataset:
    ```sh
    git clone https://github.com/ainura-dalabayeva/automatic-instance-linking.git
    ```
-2. Install NPM packages
+2. Install dependencies
    ```sh
    pip install -r requirements.txt
    ```
