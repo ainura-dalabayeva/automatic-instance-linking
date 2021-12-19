@@ -14,9 +14,8 @@ In this project, we aim to link microdata to entities in knowledge graphs. More 
 
 The main functions of the tool are:
 * to collect and clean datasets
-* to detect the keys from datasets using existing key discovery tool
+* to detect the keys from datasets using existing key discovery tool - SAKEY
 * to rank obtained keys and find the most useful keys for data linking task
-* to write a SPARQL queries from obtained keys which can be used directly by the user for linking the instances from the two datasets.
 
 The main motivation of this work is attempt to link knowledge graphs to the Web which would make an enhancement in providing more accurate and rich search result, i.e. provide best search experience for users.
 
@@ -47,8 +46,6 @@ This tool mainly rely on open-source libraries:
 * bs4
 * argparse
 
-### Tool functionalities
-
 ### Tool parameters
 
 Parameters that can be provided as input to the linking tool:
@@ -68,6 +65,10 @@ dataset: Input dataset: dbpedia or schema. Required positional argument
 --nbExceptions: The number of exceptions for key discovery tool. Optional for both `DBpedia.org` and `Schema.org` datasets. Default: `1`
 
 --objLengthThreshold: Maximal length of literals in triples. Optional for both `DBpedia.org` and `Schema.org` datasets. Default: `100`
+
+### Output
+
+As an output tool provides a text file of discovered useful keys with their rank value which then can be used to write a SPARQL query to link instances from `DBpedia.org` and `Schema.org` datasets.
 
 
 ### Examples
