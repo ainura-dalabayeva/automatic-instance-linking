@@ -13,6 +13,9 @@ from subprocess import Popen, PIPE
 import argparse
 
 
+# Function to run ontology alignment tools automatically
+# Not ready. Tools can be ran from script, but functionality
+# to proceed in terminal and copying the output alignment file before deleting should be added.
 def align_ontologies(ontology1, ontology2):
     seals_client_matcher_url = "http://oaei.ontologymatching.org/2011.5/tutorial/seals-omt-client.jar"
     local_file = 'seals-omt-client.jar'
@@ -35,6 +38,8 @@ def align_ontologies(ontology1, ontology2):
         os.system(command)
 
 
+# Function to create and clean DBpedia.org dataset of provided class and source HDT file in N-Triples format .nt
+# Output: Path to clean N-Triples file and number of distinct instances of dataset. Saved in triples.nt file.
 def create_triples(source_hdt_file_path, alignment_file_path,
                    class_name, str_length_threshold=100):
     script_dir = os.path.dirname(__file__)
@@ -45,14 +50,14 @@ def create_triples(source_hdt_file_path, alignment_file_path,
 
     distinct_instances = set()
     distinct_props = set()
-
+    # Open alignment file
     with open(alignment_file_path, "r", encoding='utf-8') as alignment:
         # Read each line in the file, readlines() returns a list of lines
         content = alignment.readlines()
         # Combine the lines in the list into a string
         content = "".join(content)
         bs_content = BeautifulSoup(content, "lxml")
-        mappings = [row['rdf:resource'] for row in bs_content.find_all('entity1')]
+        mappings = [row['rdf:resource'] for row in bs_content.find_all(['entity1', 'entity2'])]
     # Load an HDT file.
     document = HDTDocument(source_hdt_file_path)
 
@@ -63,6 +68,7 @@ def create_triples(source_hdt_file_path, alignment_file_path,
     for s, p, o in triples:
         triples2, cardinality2 = document.search_triples(s, "", "")
         for s2, p2, o2 in triples2:
+            # if property is not mapped to not include it in final dataset
             if p2 not in mappings:
                 continue
             # cleaning
@@ -94,6 +100,8 @@ def create_triples(source_hdt_file_path, alignment_file_path,
     return nt_file_path, len(distinct_instances)
 
 
+# Function to create and clean Schema.org dataset of provided source N-Quads .nq file into N-Triples .nt format
+# Output: Path to clean N-Triples file and number of distinct instances of dataset. Saved in triples.nt file.
 def skolemize(source_file_path, alignment_file_path, str_length_threshold=100):
     script_dir = os.path.dirname(__file__)
     source_file_path = os.path.join(script_dir, source_file_path)
@@ -102,14 +110,14 @@ def skolemize(source_file_path, alignment_file_path, str_length_threshold=100):
 
     distinct_instances = set()
     distinct_props = set()
-
+    # open alignment file
     with open(alignment_file_path, "r", encoding='utf-8') as alignment:
         # Read each line in the file, readlines() returns a list of lines
         content = alignment.readlines()
         # Combine the lines in the list into a string
         content = "".join(content)
         bs_content = BeautifulSoup(content, "lxml")
-        mappings = [row['rdf:resource'] for row in bs_content.find_all('entity1')]
+        mappings = [row['rdf:resource'] for row in bs_content.find_all(['entity1', 'entity2'])]
 
     with open(source_file_path, "r", encoding='utf-8') as nt:
         f = open(nt_file_path, "w")
@@ -139,7 +147,7 @@ def skolemize(source_file_path, alignment_file_path, str_length_threshold=100):
             spo = line.split('> ')
             s = spo[0].replace('<', '')
             p = spo[1].replace('<', '').lower()
-
+            # if property is not mapped to not include it in final dataset
             if p not in mappings:
                 continue
 
@@ -153,6 +161,8 @@ def skolemize(source_file_path, alignment_file_path, str_length_threshold=100):
     return nt_file_path, len(distinct_instances)
 
 
+# Function to run key discovering tool
+# Output: Path to txt file of terminal output of almost keys and non keys discovered by SAKEY. Saved in keys.txt file.
 def discover_keys(key_detecting_tool_path, source_file_path, nb_exceptions):
     script_dir = os.path.dirname(__file__)
     source_file_path = os.path.join(script_dir, source_file_path)
@@ -163,12 +173,16 @@ def discover_keys(key_detecting_tool_path, source_file_path, nb_exceptions):
     return keys_file_path
 
 
+# Additional function to check if discovered almost keys are minimal.
+# Output: txt file of not minimal keys. Saved in not-min-keys.txt file.
 def check_minimal_keys(keys_file_path):
     script_dir = os.path.dirname(__file__)
     abs_keys_file_path = os.path.join(script_dir, keys_file_path)
     min_keys_file_path = os.path.join(script_dir, "not-min-keys.txt")
-    with open(abs_keys_file_path, "r") as keys_file:
-        keys = keys_file.read().split('\n')
+    with open(abs_keys_file_path, "r") as keys_f:
+        keys = keys_f.read()
+        almost_keys = re.search(r"(?<=(almost keys:\[)).*(?=(\]))", keys).group()
+        keys = almost_keys.split('], ')
         f = open(min_keys_file_path, "w")
         for key_str in keys:
             key = str_to_list(key_str)
@@ -181,14 +195,16 @@ def check_minimal_keys(keys_file_path):
         f.close()
 
 
+# Function to get distinct properties in keys
+# Output: Path to txt file of distinct properties. Saved in distinct-props.txt file.
 def get_distinct_props(keys_file_path):
     script_dir = os.path.dirname(__file__)
     abs_keys_file_path = os.path.join(script_dir, keys_file_path)
     props_file_path = "distinct-props.txt"
     props_file_path = os.path.join(script_dir, props_file_path)
     distinct_props = set()
-    with open(abs_keys_file_path, "r") as keys_file:
-        keys = keys_file.read()
+    with open(abs_keys_file_path, "r") as keys_f:
+        keys = keys_f.read()
         almost_keys = re.search(r"(?<=(almost keys:\[)).*(?=(\]))", keys).group()
         keys = almost_keys.split('], ')
         for key_str in keys:
@@ -203,6 +219,10 @@ def get_distinct_props(keys_file_path):
     return props_file_path
 
 
+# Function to calculate the support of the distinct properties in keys.
+# Output: 2 dictionaries saved in txt files.
+# 1) Path to txt file of dictionary in which key is property and value is set of instances described by this property. Saved in props-instances.txt file.
+# 2) txt file of dictionary in which key is property and value is number of instances described by this property. Saved in props-count.txt file.
 def get_props_count_instances(source_file_path, props_file_path):
     script_dir = os.path.dirname(__file__)
     abs_source_file_path = os.path.join(script_dir, source_file_path)
@@ -245,6 +265,8 @@ def get_props_count_instances(source_file_path, props_file_path):
     return dict_props_instances_file_path
 
 
+# Function to calculate the support of the keys.
+# Output: Path of the txt file of keys and their support. Saved in keys-support.txt file.
 def get_keys_support(keys_file_path, source_file_path, nb_instances):
     script_dir = os.path.dirname(__file__)
     abs_keys_file_path = os.path.join(script_dir, keys_file_path)
@@ -282,6 +304,8 @@ def get_keys_support(keys_file_path, source_file_path, nb_instances):
     return dict_key_support_file_path
 
 
+# Function to rank keys by their usefulness.
+# Output: Path of the txt file of ranked useful keys and their support. Saved in useful-keys.txt.txt file.
 def rank_keys(keys_support_file_path, props_alignment_file_path):
     script_dir = os.path.dirname(__file__)
     abs_keys_support_file_path = os.path.join(script_dir, keys_support_file_path)
@@ -293,7 +317,7 @@ def rank_keys(keys_support_file_path, props_alignment_file_path):
         # Combine the lines in the list into a string
         content = "".join(content)
         bs_content = BeautifulSoup(content, "lxml")
-        mappings = [row['rdf:resource'].lower() for row in bs_content.find_all('entity1')]
+        mappings = [row['rdf:resource'].lower() for row in bs_content.find_all(['entity1', 'entity2'])]
     with open(abs_keys_support_file_path, "r", encoding='utf-8') as props_file:
         key_support_dict = ast.literal_eval(props_file.read())
         for key_str in key_support_dict:
@@ -398,20 +422,26 @@ if __name__ == '__main__':
     schema.add_argument('--objLengthThreshold', nargs='?', const=100, type=int, default=100, required=False,
                         help='Maximal length of literals in triples')
     args = parser.parse_args()
-
-    if args.dataset != "dbpedia" or args.dataset != "schema":
-        raise ValueError("dbpedia or schema should be passed as a parameter")
-
+    print("--- Collecting and cleaning dataset ---")
     if args.dataset == "dbpedia":
         nt_file, nb_distinct_instances = create_triples(args.HDTFile, args.alignmentFile,
                                                         args.className, args.objLengthThreshold)
     else:
         nt_file, nb_distinct_instances = skolemize(args.sourceFile, args.alignmentFile, args.objLengthThreshold)
+    print("--- Collecting and cleaning dataset --- DONE")
+    print("--- Discovering keys ---")
     keys_file = discover_keys(args.keyDiscoveryTool, nt_file, args.nbExceptions)
+    print("--- Discovering keys --- DONE")
+    print("--- Analyzing keys ---")
     props_file = get_distinct_props(keys_file)
     dict_props_instances_file = get_props_count_instances(nt_file, props_file)
+    print("--- Calculating keys support ---")
     dict_key_support_file = get_keys_support(keys_file, dict_props_instances_file, nb_distinct_instances)
+    print("--- Calculating keys support --- DONE")
+    print("--- Ranking useful keys ---")
     rank_keys(dict_key_support_file, args.alignmentFile)
+    print("--- Ranking useful keys --- DONE")
+    print("--- FINISHED ---")
     # check_minimal_keys('dbpedia/keys-1-dbpedia.nt')
     # get_instances_number('schema_book/zipped_schema_book.nt', 'dbpedia_book/alignment.xml')
     # sort_dict('dbpedia/dict-props-count-keys-1-dbpedia.txt')
